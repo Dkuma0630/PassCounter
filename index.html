@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>来場者カウント（ローカル）</title>
+<style>
+  :root{--bg:#f2f2f2;--panel:#e9e9e9;--btn-grad:linear-gradient(180deg,#4cd964,#1fae3b);}
+  html,body{height:100%;margin:0;font-family: "Noto Sans JP",sans-serif;background:var(--bg);}
+  /* 中央カウント画面 */
+  #count-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  .center-col{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  #count-display{background:var(--panel);padding:28px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.12);margin-bottom:24px;min-width:320px}
+  #count-display h1{margin:0;font-size:20px}
+  #count-number{font-size:72px;font-weight:700;margin-top:8px}
+  #count-button{width:360px;padding:22px 24px;border-radius:16px;border:none;background:var(--btn-grad);color:#fff;font-size:22px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,0.18)}
+  #count-button .small{display:block;font-size:16px;margin-top:8px;opacity:.95}
+  /* 管理ボタン（左下） */
+  #admin-open{position:fixed;left:12px;bottom:12px;padding:8px 10px;border-radius:8px;border:none;background:#6c6c6c;color:#fff;opacity:.85;cursor:pointer}
+  /* 管理オーバーレイ（中央モーダル） */
+  #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;align-items:center;justify-content:center}
+  #admin-panel{background:#fff;border-radius:12px;width:88%;max-width:760px;max-height:88%;overflow:auto;padding:20px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.45)}
+  #close-btn{position:absolute;right:12px;top:10px;border:none;background:transparent;font-size:20px;cursor:pointer}
+  /* auth */
+  #auth-area{margin-top:28px;text-align:center}
+  #auth-area input{padding:8px 10px;font-size:18px;border-radius:8px;border:1px solid #ccc;width:60%}
+  #auth-area .btn{padding:10px 14px;margin:8px;font-size:16px;border-radius:8px;border:none;cursor:pointer}
+  #auth-success{display:none;margin-top:18px;color:#fff;background:#2db84d;padding:16px;border-radius:12px}
+  .loader{margin:12px auto;border:6px solid rgba(255,255,255,0.3);border-top:6px solid rgba(255,255,255,0.95);border-radius:50%;width:44px;height:44px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* Dashboard */
+  #dashboard{display:none;margin-top:18px}
+  #controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
+  .small-btn{padding:8px 10px;font-size:14px;border-radius:8px;border:none;cursor:pointer}
+  #log-area{background:#fafafa;border:1px solid #e0e0e0;padding:10px;height:220px;overflow:auto;border-radius:8px}
+  #graph{width:100%;height:240px;background:#fff;border-radius:8px;border:1px solid #e9e9e9;margin-top:12px}
+  /* 10人突破 popup */
+  #milestone{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#fff;padding:20px 28px;border-radius:12px;font-size:22px;display:none;z-index:60}
+  /* fireworks canvas above everything */
+  canvas.fire{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:55}
+  /* responsive */
+  @media(max-width:480px){
+    #count-button{width:84vw;font-size:20px;padding:18px}
+    #count-display{min-width:260px;padding:18px}
+    #auth-area input{width:86%}
+  }
+</style>
+</head>
+<body>
+
+<!-- カウント画面 -->
+<div id="count-screen" aria-hidden="false">
+  <div class="center-col">
+    <div id="count-display">
+      <h1>現在の入場者数</h1>
+      <div id="count-number">0</div>
+    </div>
+
+    <button id="count-button" aria-label="入場ボタン">
+      ご入場はこちら
+      <span class="small">✨入場ボタンをプッシュ！✨</span>
+    </button>
+  </div>
+</div>
+
+<button id="admin-open" aria-label="管理">管理用</button>
+
+<!-- Milestone popup -->
+<div id="milestone"></div>
+
+<!-- fireworks canvas -->
+<canvas id="fw-canvas" class="fire"></canvas>
+
+<!-- 管理オーバーレイ（中央） -->
+<div id="overlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div id="admin-panel" role="document">
+    <button id="close-btn" aria-label="閉じる">✕</button>
+
+    <div style="text-align:center">
+      <h2>管理ダッシュボード</h2>
+
+      <!-- 認証 -->
+      <div id="auth-area">
+        <label for="pass">パスコード：</label><br>
+        <input id="pass" type="password" autocomplete="off" inputmode="numeric" />
+        <div style="margin-top:12px">
+          <button id="auth-btn" class="btn small-btn" style="background:#2d8cff;color:#fff">認証</button>
+          <button id="cancel-btn" class="btn small-btn" style="background:#ddd">キャンセル</button>
+        </div>
+      </div>
+
+      <!-- success overlay during 3s (keeps input behind it) -->
+      <div id="auth-success" style="display:none">
+        <div style="font-size:20px">認証成功（Success）</div>
+        <div class="loader" aria-hidden="true"></div>
+      </div>
+
+      <!-- dashboard contents (hidden until auth complete) -->
+      <div id="dashboard">
+        <div id="controls">
+          <button id="prev-day" class="small-btn">前日</button>
+          <input id="date-picker" type="date" style="padding:8px;border-radius:6px;border:1px solid #ccc" />
+          <button id="next-day" class="small-btn">次日</button>
+          <button id="copy-log" class="small-btn">ログコピー</button>
+          <button id="reset-day" class="small-btn" style="background:#ff6666;color:#fff">リセット</button>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-direction:column;align-items:center">
+          <div id="log-area" aria-live="polite"></div>
+          <canvas id="graph"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ======================
+   データ管理（localStorage）
+   Structure:
+     visitor_data = {
+       "YYYY-MM-DD": [ timestamp-millis, ... ],
+       ...
+     }
+   ======================*/
+const STORAGE_KEY = "visitor_data_v1";
+let visitor_data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+
+// utility date key
+function dateKeyFrom(d){ 
+  const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,"0"); const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+let currentDate = dateKeyFrom(new Date());
+
+// ensure currentDate exists
+if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
+
+// save helper
+function saveAll(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(visitor_data)); }
+
+/* ======================
+   DOM elems
+   ======================*/
+const countNumber = document.getElementById("count-number");
+const countButton = document.getElementById("count-button");
+const adminOpen = document.getElementById("admin-open");
+const overlay = document.getElementById("overlay");
+const adminPanel = document.getElementById("admin-panel");
+const closeBtn = document.getElementById("close-btn");
+const authArea = document.getElementById("auth-area");
+const passInput = document.getElementById("pass");
+const authBtn = document.getElementById("auth-btn");
+const cancelBtn = document.getElementById("cancel-btn");
+const authSuccess = document.getElementById("auth-success");
+const dashboard = document.getElementById("dashboard");
+const prevDayBtn = document.getElementById("prev-day");
+const nextDayBtn = document.getElementById("next-day");
+const datePicker = document.getElementById("date-picker");
+const logArea = document.getElementById("log-area");
+const graph = document.getElementById("graph");
+const copyLogBtn = document.getElementById("copy-log");
+const resetDayBtn = document.getElementById("reset-day");
+const milestone = document.getElementById("milestone");
+const fwCanvas = document.getElementById("fw-canvas");
+const fwCtx = fwCanvas.getContext("2d");
+
+/* ======================
+   Canvas resize
+   ======================*/
+function resizeCanvas(){
+  fwCanvas.width = window.innerWidth;
+  fwCanvas.height = window.innerHeight;
+  graph.width = Math.min(700, Math.max(300, window.innerWidth * 0.9));
+  graph.height = 240;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+/* ======================
+   Helpers
+   ======================*/
+function getCountFor(dateKey){
+  const arr = visitor_data[dateKey] || [];
+  return arr.length;
+}
+function renderCountFor(dateKey){
+  countNumber.textContent = getCountFor(dateKey);
+}
+
+/* ======================
+   Initialize UI values
+   ======================*/
+datePicker.value = currentDate;
+renderCountFor(currentDate);
+
+/* ======================
+   Add count (button pressed)
+   ======================*/
+function pushEntry(){
+  const now = Date.now();
+  visitor_data[currentDate] = visitor_data[currentDate] || [];
+  visitor_data[currentDate].push(now);
+  saveAll();
+  renderCountFor(currentDate);
+  // render visual log if dashboard open and viewing same date
+  if(dashboard.style.display === "block") renderLog(currentDate), renderGraph(currentDate);
+  // check milestone (A): every 10th person
+  const cnt = getCountFor(currentDate);
+  if(cnt % 10 === 0){
+    showMilestone(cnt);
+    // also show fireworks (C)
+    startFireworks();
+  }
+}
+countButton.addEventListener("click", pushEntry);
+
+/* ======================
+   Milestone popup
+   ======================*/
+let milestoneTimer = null;
+function showMilestone(count){
+  milestone.textContent = `${count}人突破！`;
+  milestone.style.display = "block";
+  milestone.style.opacity = "1";
+  // small scale+fade animation
+  milestone.style.transform = "translate(-50%,-50%) scale(1.05)";
+  clearTimeout(milestoneTimer);
+  milestoneTimer = setTimeout(()=>{
+    milestone.style.transition = "opacity .6s, transform .6s";
+    milestone.style.opacity = "0";
+    milestone.style.transform = "translate(-50%,-50%) scale(.9)";
+    setTimeout(()=>{ milestone.style.display="none"; milestone.style.transition=""; },700);
+  }, 1000); // show 1s then fade
+}
+
+/* ======================
+   Fireworks effect (C)
+   Simple particle burst using fwCanvas
+   ======================*/
+function startFireworks(){
+  const particles = [];
+  const cx = Math.random()*(fwCanvas.width*0.6)+fwCanvas.width*0.2;
+  const cy = Math.random()*(fwCanvas.height*0.35)+fwCanvas.height*0.1;
+  const n = 120;
+  for(let i=0;i<n;i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = Math.random()*6 + 1;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed,
+      r: Math.random()*3+1.5,
+      color: `hsl(${Math.floor(Math.random()*360)},100%,60%)`,
+      life: Math.random()*60+40
+    });
+  }
+  let t = 0;
+  const id = setInterval(()=>{
+    t++;
+    fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+    for(const p of particles){
+      if(p.life<=0) continue;
+      fwCtx.beginPath();
+      fwCtx.globalAlpha = Math.max(0, p.life/100);
+      fwCtx.fillStyle = p.color;
+      fwCtx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      fwCtx.fill();
+      p.x += p.vx;
+      p.y += p.vy + 0.1 * t*0.01; // gravity-ish
+      p.vx *= 0.99;
+      p.vy *= 0.99;
+      p.life -= 1.5;
+    }
+    if(particles.every(pp=>pp.life<=0)){
+      clearInterval(id);
+      setTimeout(()=>fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height), 50);
+    }
+  }, 16);
+}
+
+/* ======================
+   Admin open/close
+   ======================*/
+adminOpen.addEventListener("click", ()=>{
+  overlay.style.display = "flex";
+  overlay.setAttribute("aria-hidden","false");
+  adminPanel.style.left = "0";
+  // hide count screen while admin open (explicit requirement)
+  document.getElementById("count-screen").style.display = "none";
+});
+function closeAdmin(){
+  overlay.style.display = "none";
+  overlay.setAttribute("aria-hidden","true");
+  adminPanel.style.left = "-100%";
+  // restore count screen
+  document.getElementById("count-screen").style.display = "block";
+  // reset auth UI to initial state (completely)
+  resetAuthUI();
+}
+closeBtn.addEventListener("click", closeAdmin);
+document.getElementById("cancel-btn").addEventListener("click", closeAdmin);
+
+/* ======================
+   Auth flow: keep input visible during 3s animation,
+   show success overlay above it, then hide auth area and show dashboard.
+   After closing admin, reset back to auth.
+   ======================*/
+const PASS = "1234";
+
+authBtn.addEventListener("click", ()=>{
+  const v = passInput.value || "";
+  if(v !== PASS){ alert("パスコードが違います"); return; }
+  // show success overlay (on top) but keep auth input visible behind it
+  authSuccess.style.display = "block";
+  // keep focus invisibly - do not save pass
+  passInput.value = ""; // ensure not stored visible
+  // 3 seconds loader -> then show dashboard and hide auth area
+  setTimeout(()=>{
+    authSuccess.style.display = "none";
+    authArea.style.display = "none"; // hide auth area (label+input+buttons)
+    dashboard.style.display = "block";
+    // initialize dashboard UI values
+    currentDate = datePicker.value || currentDate;
+    renderLog(currentDate);
+    renderGraph(currentDate);
+  }, 3000);
+});
+
+/* ======================
+   reset auth UI (on close)
+   ======================*/
+function resetAuthUI(){
+  authArea.style.display = "block";
+  passInput.value = "";
+  authSuccess.style.display = "none";
+  dashboard.style.display = "none";
+  // reset date-picker to currentDate
+  datePicker.value = currentDate;
+}
+
+/* ======================
+   Date navigation / render
+   ======================*/
+function renderLog(dateKey){
+  dateKey = dateKey || currentDate;
+  const arr = visitor_data[dateKey] || [];
+  // show count for selected date
+  // Note: if admin view shows different date than current date in main screen, keep main count unchanged until switching main date
+  const lines = arr.map(ts => new Date(ts).toLocaleString());
+  logArea.innerHTML = lines.length ? lines.join("<br>") : "<div style='opacity:.7'>まだ記録がありません</div>";
+  // update date-picker value
+  datePicker.value = dateKey;
+}
+
+function renderGraph(dateKey){
+  dateKey = dateKey || currentDate;
+  const arr = (visitor_data[dateKey] || []).slice().sort((a,b)=>a-b);
+  const ctx = graph.getContext("2d");
+  ctx.clearRect(0,0,graph.width,graph.height);
+  if(arr.length === 0) return;
+  // Build time series (cumulative) — x axis: minutes from 0:00, y axis: cumulative count
+  const times = arr.map(t=>new Date(t));
+  const start = new Date(dateKey + "T00:00:00");
+  const total = arr.length;
+  // Map to points
+  const w = graph.width, h = graph.height;
+  const pts = times.map(d=>{
+    const minutes = (d - start) / 60000;
+    const x = Math.max(0, Math.min(w, (minutes / (24*60)) * w));
+    return { x, y: h - ( ( (arr.indexOf(d.getTime())+1) / total ) * h ) };
+  });
+  // Simpler: draw cumulative step-like curve
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#3b82f6";
+  ctx.beginPath();
+  for(let i=0;i<times.length;i++){
+    const minutes = (times[i] - start) / 60000;
+    const x = Math.max(0, Math.min(w, (minutes / (24*60)) * w));
+    const y = h - ((i+1)/total)*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // axes (very simple)
+  ctx.fillStyle = "#666";
+  ctx.font = "12px sans-serif";
+  ctx.fillText("0:00", 4, h-4);
+  ctx.fillText("24:00", w-36, h-4);
+}
+
+/* init datePicker and navigation */
+datePicker.value = currentDate;
+datePicker.addEventListener("change", ()=>{
+  currentDate = datePicker.value;
+  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
+  saveAll();
+  renderLog(currentDate);
+  renderGraph(currentDate);
+  // main screen count reflects currently selected date? keep it so admin can inspect other dates
+  renderCountFor(currentDate);
+});
+
+/* prev/next day */
+prevDayBtn.addEventListener("click", ()=>{
+  const d = new Date(currentDate + "T00:00:00");
+  d.setDate(d.getDate()-1);
+  currentDate = dateKeyFrom(d);
+  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
+  datePicker.value = currentDate;
+  saveAll();
+  renderLog(currentDate);
+  renderGraph(currentDate);
+  renderCountFor(currentDate);
+});
+nextDayBtn.addEventListener("click", ()=>{
+  const d = new Date(currentDate + "T00:00:00");
+  d.setDate(d.getDate()+1);
+  currentDate = dateKeyFrom(d);
+  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
+  datePicker.value = currentDate;
+  saveAll();
+  renderLog(currentDate);
+  renderGraph(currentDate);
+  renderCountFor(currentDate);
+});
+
+/* copy log */
+copyLogBtn.addEventListener("click", async ()=>{
+  const arr = visitor_data[currentDate] || [];
+  if(arr.length===0){ alert("記録がありません"); return; }
+  const text = arr.map(t=>new Date(t).toLocaleString()).join("\n");
+  try{
+    await navigator.clipboard.writeText(text);
+    alert("ログをクリップボードにコピーしました");
+  }catch(e){
+    alert("コピーに失敗しました（ブラウザの権限を確認してください）");
+  }
+});
+
+/* reset day */
+resetDayBtn.addEventListener("click", ()=>{
+  if(!confirm("本当にこの日の記録をリセットしますか？（元に戻せません）")) return;
+  visitor_data[currentDate] = [];
+  saveAll();
+  renderLog(currentDate);
+  renderGraph(currentDate);
+  renderCountFor(currentDate);
+});
+
+/* render main count for currently selected date by admin? Keep main count reflects currentDate */
+function renderCountFor(dateKey){
+  dateKey = dateKey || currentDate;
+  const cnt = (visitor_data[dateKey] || []).length;
+  countNumber.textContent = cnt;
+}
+
+/* When overlay closed, show main screen count for today (not necessarily currently viewed date) */
+function restoreMainCountToToday(){
+  const today = dateKeyFrom(new Date());
+  if(visitor_data[today]) countNumber.textContent = visitor_data[today].length;
+  else countNumber.textContent = 0;
+}
+
+/* When admin overlay closed, restore main count to today's data */
+closeBtn.addEventListener("click", ()=>{
+  closeAfterReset();
+});
+function closeAfterReset(){
+  closeAdminUI();
+  restoreMainCountToToday();
+}
+function closeAdminUI(){
+  overlay.style.display = "none";
+  adminPanel.style.left = "-100%";
+  // reset auth to fresh
+  resetAuthUI();
+  // show count screen again
+  document.getElementById("count-screen").style.display = "flex";
+}
+
+/* resetAuthUI (also used when closing via cancel) */
+function resetAuthUI(){
+  authSuccess.style.display = "none";
+  authArea.style.display = "block";
+  dashboard.style.display = "none";
+  passInput.value = "";
+}
+
+/* ensure saveAll exists */
+function saveAll(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(visitor_data));
+}
+
+/* initial rendering for admin when first opened later */
+function renderGraphAndLogInit(){
+  datePicker.value = currentDate;
+  renderLog(currentDate);
+  renderGraph(currentDate);
+}
+
+/* When overlay opens, set datePicker to currentDate and render */
+adminOpen.addEventListener("click", ()=>{
+  datePicker.value = currentDate;
+  renderLog(currentDate);
+  renderGraph(currentDate);
+});
+
+/* Also ensure when closed by cancel */
+document.getElementById("cancel-btn").addEventListener("click", ()=>{
+  closeAdminUI();
+  document.getElementById("count-screen").style.display = "flex";
+});
+
+/* ensure pressing Escape closes admin */
+window.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape" && overlay.style.display === "flex"){
+    closeAdminUI();
+    document.getElementById("count-screen").style.display = "flex";
+  }
+});
+
+/* make sure main count shows today on load */
+restoreMainCountToToday();
+
+</script>
+</body>
+</html>
