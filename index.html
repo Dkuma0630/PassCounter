@@ -25,6 +25,9 @@
   #count-button:active { transform: scale(0.98); }
   #count-button .small { display: block; font-size: 14px; margin-top: 6px; opacity: .9; font-weight: normal; }
   
+  /* ガイドテキスト（Enter/Spaceの案内） */
+  .keyboard-guide { margin-top: 16px; font-size: 14px; color: #666; background: rgba(0,0,0,0.05); padding: 8px 16px; border-radius: 20px; font-weight: 500; }
+  
   /* 管理ボタン */
   #admin-open { position: fixed; left: 16px; bottom: 16px; padding: 10px 16px; border-radius: 30px; border: none; background: #333; color: #fff; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.2s; }
   #admin-open:hover { background: #555; }
@@ -51,7 +54,7 @@
   /* ダッシュボード構造 */
   #dashboard { display: none; margin-top: 16px; }
   
-  /* タブメニュー UI提案 */
+  /* タブメニュー */
   .tab-menu { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; gap: 8px; }
   .tab-btn { padding: 10px 20px; border: none; background: none; font-size: 16px; font-weight: bold; cursor: pointer; color: #888; border-bottom: 3px solid transparent; bottom: -2px; position: relative; }
   .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
@@ -68,7 +71,7 @@
   @media(min-width: 600px) {
     .dashboard-grid { grid-template-columns: 240px 1fr; }
   }
-  #log-area { background: #fafafa; border: 1px solid #e0e0e0; padding: 12px; height: 260px; overflow-auto: auto; border-radius: 10px; font-size: 13px; font-family: monospace; }
+  #log-area { background: #fafafa; border: 1px solid #e0e0e0; padding: 12px; height: 260px; overflow-y: auto; border-radius: 10px; font-size: 13px; font-family: monospace; }
   #graph { width: 100%; height: 280px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; }
   
   /* ログイン履歴表示用 */
@@ -78,7 +81,7 @@
   .badge.success { background: #2db84d; }
   .badge.danger { background: var(--danger); }
   
-  /* その他既存のPOPUP等 */
+  /* ポップアップ等 */
   #milestone { position: fixed; left: 50%; top: 30%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 20px 32px; border-radius: 16px; font-size: 24px; font-weight: bold; display: none; z-index: 60; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
   canvas.fire { position: fixed; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 55; }
   
@@ -101,6 +104,7 @@
       ご入場はこちら
       <span class="small">✨入場ボタンをプッシュ！✨</span>
     </button>
+    <div class="keyboard-guide">⌨️ Enterキー または Spaceキー でもカウントできます</div>
   </div>
 </div>
 
@@ -115,7 +119,7 @@
 
     <div id="auth-area">
       <label for="pass">パスコードを入力してください</label><br>
-      <input id="pass" type="password" autocomplete="off" inputmode="numeric" placeholder=" " />
+      <input id="pass" type="password" autocomplete="off" inputmode="numeric" placeholder="••••" />
       <div class="btn-group">
         <button id="auth-btn" class="btn" style="background:var(--primary); color:#fff">認証</button>
         <button id="cancel-btn" class="btn" style="background:#eee; color:#333">キャンセル</button>
@@ -167,13 +171,15 @@
    ======================*/
 const STORAGE_KEY = "visitor_data_v1";
 const LOG_STORAGE_KEY = "admin_login_logs_v1";
-const PASS = "1234";          // パスコード
-const MAX_ATTEMPTS = 3;       // ロック・警告が発生する試行回数
+const PASS = "1234";              // パスコード
+const MISS_PER_ALERT = 3;         // 何回間違えるごとに不正操作1回とカウントするか
 
 let visitor_data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
 let login_logs = JSON.parse(localStorage.getItem(LOG_STORAGE_KEY) || "[]");
-let missCount = 0;            // 現在の連続ミス回数
-let alertPending = false;     // 不正操作の警告ポップアップを表示するフラグ
+
+let totalMissCount = 0;           // 通算の入力ミス回数
+let illegalActionCount = 0;       // 不正操作のカウント (3回ミスで1加算)
+let alertPending = false;         // 不正操作の警告ポップアップを表示するフラグ
 
 function dateKeyFrom(d){ 
   const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,"0"); const day = String(d.getDate()).padStart(2,"0");
@@ -218,7 +224,9 @@ const loginLogArea = document.getElementById("login-log-area");
 function resizeCanvas(){
   fwCanvas.width = window.innerWidth;
   fwCanvas.height = window.innerHeight;
-  graph.width = graph.parentElement.clientWidth;
+  if (graph.parentElement) {
+    graph.width = graph.parentElement.clientWidth;
+  }
   graph.height = 260;
   if(dashboard.style.display === "block") renderGraph(datePicker.value);
 }
@@ -234,7 +242,7 @@ renderCountFor(currentDate);
    来場者カウント処理
    ======================*/
 function pushEntry(){
-  // 管理画面が開いている場合はカウントさせない
+  // 管理画面が開いている場合は完全にカウントさせない
   if(overlay.style.display === "flex") return;
 
   const now = Date.now();
@@ -263,17 +271,24 @@ window.addEventListener("keydown", (e) => {
 });
 
 /* ======================
-   認証フロー（Enterキー対応・ログ記録）
+   認証フロー（未入力検知・不正操作3回判定）
    ======================*/
 function attemptAuth(){
   const v = passInput.value || "";
   const timeStr = new Date().toLocaleString();
 
+  // 1. 何も入力されていないときの処理
+  if(v.trim() === "") {
+    alert("パスコードを入力してください");
+    passInput.focus();
+    return;
+  }
+
+  // 2. 正解の場合
   if(v === PASS){
-    // 認証成功ログの追加
     login_logs.unshift({ time: timeStr, status: "SUCCESS", msg: "正常ログイン" });
     saveLoginLogs();
-    missCount = 0; // ミスカウントをリセット
+    totalMissCount = 0; // 成功したらミス判定累計をリセットしたい場合はここ（今回は連続ミス前提）
 
     authArea.style.display = "none";
     authSuccess.style.display = "block";
@@ -282,21 +297,26 @@ function attemptAuth(){
     setTimeout(()=>{
       authSuccess.style.display = "none";
       dashboard.style.display = "block";
-      switchTab('tab-home'); // 最初は来場者推移画面を表示
+      switchTab('tab-home');
       renderLog(datePicker.value);
       renderGraph(datePicker.value);
       renderLoginLogs();
       resizeCanvas();
-    }, 2000); // 演出を少し短く(2秒)に調整して操作性をUP
-  } else {
-    // 認証失敗ログの追加
-    missCount++;
-    login_logs.unshift({ time: timeStr, status: "ALERT", msg: `パスコード誤入力 (${missCount}回目)` });
+    }, 2000);
+  } 
+  // 3. 不正（間違い）の場合
+  else {
+    totalMissCount++;
     
-    if(missCount >= MAX_ATTEMPTS) {
-      login_logs.unshift({ time: timeStr, status: "ALERT", msg: `不正操作を検知 [${missCount}回]` });
-      alertPending = true; // 次回開いたとき用のフラグを立てる
+    // 間違えた回数が3回（MISS_PER_ALERT）ごとに、不正操作カウントを1回と計算
+    if(totalMissCount % MISS_PER_ALERT === 0) {
+      illegalActionCount++;
+      login_logs.unshift({ time: timeStr, status: "ALERT", msg: `不正操作を検知 [${illegalActionCount}回目] (計${totalMissCount}回ミス)` });
+      alertPending = true; // 管理画面を開いた時に出す警告フラグ
+    } else {
+      login_logs.unshift({ time: timeStr, status: "ALERT", msg: `パスコード誤入力 (誤入力累計:${totalMissCount}回)` });
     }
+    
     saveLoginLogs();
     alert("パスコードが違います");
     passInput.value = "";
@@ -318,11 +338,11 @@ passInput.addEventListener("keydown", (e) => {
 adminOpen.addEventListener("click", ()=>{
   overlay.style.display = "flex";
   
-  // 指定回数以上の不正ミスがあった場合、1回のみ警告を出す
-  if(alertPending) {
+  // 3回ごとにカウントされた不正操作がある場合、開いた瞬間に1回だけ表示
+  if(alertPending && illegalActionCount > 0) {
     setTimeout(() => {
-      alert(`不正操作が行われました。[${missCount}回]`);
-      alertPending = false; // 1回表示したらリセット
+      alert(`不正操作が行われました。[${illegalActionCount}回]`);
+      alertPending = false; // 表示したためフラグを倒す
     }, 100);
   }
 
@@ -333,14 +353,13 @@ adminOpen.addEventListener("click", ()=>{
 function closeAdminUI(){
   overlay.style.display = "none";
   resetAuthUI();
-  // メイン画面のカウントを本日のものに直す
   renderCountFor(dateKeyFrom(new Date()));
 }
 
 closeBtn.addEventListener("click", closeAdminUI);
 cancelBtn.addEventListener("click", closeAdminUI);
 
-// ESCキーを押して管理画面を閉じる処理
+// ESCキーによるクローズ処理
 window.addEventListener("keydown", (e)=>{
   if(e.key === "Escape" && overlay.style.display === "flex"){
     closeAdminUI();
@@ -383,7 +402,6 @@ function renderGraph(dateKey){
   
   ctx.clearRect(0,0,w,h);
   
-  // 背景のグリッド（補助線）の描画
   ctx.strokeStyle = "#f0f0f0";
   ctx.lineWidth = 1;
   
@@ -396,7 +414,6 @@ function renderGraph(dateKey){
     ctx.lineTo(x, h - 25);
     ctx.stroke();
     
-    // 時間文字
     ctx.fillStyle = "#999";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
@@ -410,7 +427,7 @@ function renderGraph(dateKey){
     return;
   }
 
-  // 横線（人数軸: 最大値に応じた目盛り）
+  // 横線（人数軸）
   const total = arr.length;
   const yLines = 4;
   for(let i=0; i<=yLines; i++) {
@@ -420,16 +437,15 @@ function renderGraph(dateKey){
     ctx.lineTo(w - 15, y);
     ctx.stroke();
     
-    // 人数文字
     ctx.fillStyle = "#999";
     ctx.textAlign = "right";
     const val = Math.round(total - (i / yLines) * total);
     ctx.fillText(val, 20, y + 4);
   }
 
-  // データのマッピングと描画 (エリア・グラデーション表現)
+  // エリア・グラデーション表現
   const start = new Date(dateKey + "T00:00:00");
-  const points = [{x: 25, y: h - 25}]; // 起点
+  const points = [{x: 25, y: h - 25}];
 
   arr.forEach((ts, index) => {
     const d = new Date(ts);
@@ -439,10 +455,8 @@ function renderGraph(dateKey){
     points.push({ x, y });
   });
   
-  // 最後の時間から24:00までの水平線を追加
   points.push({ x: w - 15, y: points[points.length - 1].y });
 
-  // 1. エリア（塗りつぶし）の描画
   const gradient = ctx.createLinearGradient(0, 0, 0, h);
   gradient.addColorStop(0, "rgba(45, 140, 255, 0.3)");
   gradient.addColorStop(1, "rgba(45, 140, 255, 0.0)");
@@ -450,12 +464,11 @@ function renderGraph(dateKey){
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   points.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(w - 15, h - 25); // 右下へ閉じる
+  ctx.lineTo(w - 15, h - 25);
   ctx.closePath();
   ctx.fillStyle = gradient;
   ctx.fill();
 
-  // 2. メインの折れ線を描画
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -466,7 +479,7 @@ function renderGraph(dateKey){
 }
 
 /* ======================
-   各種データ描画・操作
+   データログのテキスト出力など
    ======================*/
 function renderLog(dateKey){
   const arr = visitor_data[dateKey] || [];
@@ -491,7 +504,7 @@ function renderLoginLogs(){
   }).join("");
 }
 
-/* 日付ナビゲーション */
+/* 日付ナビゲーションイベント */
 datePicker.addEventListener("change", ()=>{
   currentDate = datePicker.value;
   if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
@@ -537,9 +550,7 @@ resetDayBtn.addEventListener("click", ()=>{
   renderGraph(datePicker.value);
 });
 
-/* ======================
-   ポップアップ演出（マイルストーン・花火）
-   ======================*/
+/* ポップアップ演出 */
 let milestoneTimer = null;
 function showMilestone(count){
   milestone.textContent = `${count}人突破！`;
