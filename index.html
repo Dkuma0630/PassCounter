@@ -5,57 +5,98 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>来場者カウント</title>
 <style>
-  :root{--bg:#f2f2f2;--panel:#e9e9e9;--btn-grad:linear-gradient(180deg,#4cd964,#1fae3b);}
-  html,body{height:100%;margin:0;font-family: "Noto Sans JP",sans-serif;background:var(--bg);}
+  :root {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --btn-grad: linear-gradient(135deg, #4cd964, #2db84d);
+    --primary: #2d8cff;
+    --danger: #ff4d4d;
+    --text: #333333;
+  }
+  html, body { height: 100%; margin: 0; font-family: "Noto Sans JP", sans-serif; background: var(--bg); color: var(--text); }
+  
   /* 中央カウント画面 */
-  #count-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
-  .center-col{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-  #count-display{background:var(--panel);padding:28px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.12);margin-bottom:24px;min-width:320px}
-  #count-display h1{margin:0;font-size:20px}
-  #count-number{font-size:72px;font-weight:700;margin-top:8px}
-  #count-button{width:360px;padding:22px 24px;border-radius:16px;border:none;background:var(--btn-grad);color:#fff;font-size:22px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,0.18)}
-  #count-button .small{display:block;font-size:16px;margin-top:8px;opacity:.95}
-  /* 管理ボタン（左下） */
-  #admin-open{position:fixed;left:12px;bottom:12px;padding:8px 10px;border-radius:8px;border:none;background:#6c6c6c;color:#fff;opacity:.85;cursor:pointer}
+  #count-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .center-col { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #count-display { background: var(--panel); padding: 35px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); margin-bottom: 24px; min-width: 340px; }
+  #count-display h1 { margin: 0; font-size: 18px; color: #666; letter-spacing: 1px; }
+  #count-number { font-size: 84px; font-weight: 700; margin-top: 8px; color: #111; }
+  #count-button { width: 360px; padding: 22px 24px; border-radius: 18px; border: none; background: var(--btn-grad); color: #fff; font-size: 22px; font-weight: bold; cursor: pointer; box-shadow: 0 8px 20px rgba(45, 184, 77, 0.3); transition: transform 0.1s; }
+  #count-button:active { transform: scale(0.98); }
+  #count-button .small { display: block; font-size: 14px; margin-top: 6px; opacity: .9; font-weight: normal; }
+  
+  /* 管理ボタン */
+  #admin-open { position: fixed; left: 16px; bottom: 16px; padding: 10px 16px; border-radius: 30px; border: none; background: #333; color: #fff; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.2s; }
+  #admin-open:hover { background: #555; }
+  
   /* 管理オーバーレイ（中央モーダル） */
-  #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;align-items:center;justify-content:center}
-  #admin-panel{background:#fff;border-radius:12px;width:88%;max-width:760px;max-height:88%;overflow:auto;padding:20px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.45)}
-  #close-btn{position:absolute;right:12px;top:10px;border:none;background:transparent;font-size:20px;cursor:pointer}
-  /* auth */
-  #auth-area{margin-top:28px;text-align:center}
-  #auth-area input{padding:8px 10px;font-size:18px;border-radius:8px;border:1px solid #ccc;width:60%}
-  #auth-area .btn{padding:10px 14px;margin:8px;font-size:16px;border-radius:8px;border:none;cursor:pointer}
-  #auth-success{display:none;margin-top:18px;color:#fff;background:#2db84d;padding:16px;border-radius:12px}
-  .loader{margin:12px auto;border:6px solid rgba(255,255,255,0.3);border-top:6px solid rgba(255,255,255,0.95);border-radius:50%;width:44px;height:44px;animation:spin 1s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  /* Dashboard */
-  #dashboard{display:none;margin-top:18px}
-  #controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
-  .small-btn{padding:8px 10px;font-size:14px;border-radius:8px;border:none;cursor:pointer}
-  #log-area{background:#fafafa;border:1px solid #e0e0e0;padding:10px;height:220px;overflow:auto;border-radius:8px}
-  #graph{width:100%;height:240px;background:#fff;border-radius:8px;border:1px solid #e9e9e9;margin-top:12px}
-  /* 10人突破 popup */
-  #milestone{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#fff;padding:20px 28px;border-radius:12px;font-size:22px;display:none;z-index:60}
-  /* fireworks canvas above everything */
-  canvas.fire{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:55}
-  /* responsive */
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  #admin-panel { background: #fff; border-radius: 20px; width: 92%; max-width: 800px; max-height: 90%; overflow: auto; padding: 28px; position: relative; box-shadow: 0 24px 70px rgba(0,0,0,0.3); }
+  #close-btn { position: absolute; right: 20px; top: 16px; border: none; background: transparent; font-size: 24px; cursor: pointer; color: #aaa; }
+  #close-btn:hover { color: #333; }
+  
+  /* 認証エリア */
+  #auth-area { margin-top: 40px; text-align: center; }
+  #auth-area label { font-size: 16px; font-weight: bold; }
+  #auth-area input { padding: 12px 16px; font-size: 20px; border-radius: 10px; border: 2px solid #ddd; width: 60%; text-align: center; margin-top: 10px; letter-spacing: 4px; }
+  #auth-area input:focus { border-color: var(--primary); outline: none; }
+  .btn-group { margin-top: 20px; display: flex; justify-content: center; gap: 12px; }
+  .btn { padding: 12px 24px; font-size: 15px; font-weight: bold; border-radius: 10px; border: none; cursor: pointer; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.9; }
+  
+  #auth-success { display: none; margin-top: 18px; color: #fff; background: #2db84d; padding: 20px; border-radius: 14px; text-align: center; }
+  .loader { margin: 16px auto 0; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #fff; border-radius: 50%; width: 36px; height: 36px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  /* ダッシュボード構造 */
+  #dashboard { display: none; margin-top: 16px; }
+  
+  /* タブメニュー UI提案 */
+  .tab-menu { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; gap: 8px; }
+  .tab-btn { padding: 10px 20px; border: none; background: none; font-size: 16px; font-weight: bold; cursor: pointer; color: #888; border-bottom: 3px solid transparent; bottom: -2px; position: relative; }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  
+  /* コントロールバー */
+  #controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; align-items: center; }
+  .small-btn { padding: 10px 14px; font-size: 14px; font-weight: bold; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+  .small-btn:hover { background: #f9f9f9; }
+  
+  /* ログエリア・グラフの強化レイアウト */
+  .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 20px; width: 100%; }
+  @media(min-width: 600px) {
+    .dashboard-grid { grid-template-columns: 240px 1fr; }
+  }
+  #log-area { background: #fafafa; border: 1px solid #e0e0e0; padding: 12px; height: 260px; overflow-auto: auto; border-radius: 10px; font-size: 13px; font-family: monospace; }
+  #graph { width: 100%; height: 280px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; }
+  
+  /* ログイン履歴表示用 */
+  #login-log-area { background: #fafafa; border: 1px solid #e0e0e0; padding: 16px; height: 300px; overflow-y: auto; border-radius: 10px; text-align: left; font-family: monospace; }
+  .log-row { padding: 8px 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+  .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: #fff; }
+  .badge.success { background: #2db84d; }
+  .badge.danger { background: var(--danger); }
+  
+  /* その他既存のPOPUP等 */
+  #milestone { position: fixed; left: 50%; top: 30%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 20px 32px; border-radius: 16px; font-size: 24px; font-weight: bold; display: none; z-index: 60; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+  canvas.fire { position: fixed; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 55; }
+  
   @media(max-width:480px){
-    #count-button{width:84vw;font-size:20px;padding:18px}
-    #count-display{min-width:260px;padding:18px}
-    #auth-area input{width:86%}
+    #count-button { width: 88vw; font-size: 18px; padding: 18px; }
+    #count-display { min-width: 280px; padding: 20px; }
+    #auth-area input { width: 85%; }
   }
 </style>
 </head>
 <body>
 
-<!-- カウント画面 -->
-<div id="count-screen" aria-hidden="false">
+<div id="count-screen">
   <div class="center-col">
     <div id="count-display">
       <h1>現在の入場者数</h1>
       <div id="count-number">0</div>
     </div>
-
     <button id="count-button" aria-label="入場ボタン">
       ご入場はこちら
       <span class="small">✨入場ボタンをプッシュ！✨</span>
@@ -63,52 +104,58 @@
   </div>
 </div>
 
-<button id="admin-open" aria-label="管理">管理用</button>
-
-<!-- Milestone popup -->
+<button id="admin-open" aria-label="管理">⚙️ 管理用</button>
 <div id="milestone"></div>
-
-<!-- fireworks canvas -->
 <canvas id="fw-canvas" class="fire"></canvas>
 
-<!-- 管理オーバーレイ（中央） -->
-<div id="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div id="admin-panel" role="document">
+<div id="overlay" role="dialog" aria-modal="true">
+  <div id="admin-panel">
     <button id="close-btn" aria-label="閉じる">✕</button>
+    <h2 style="text-align:center; margin-top: 0;">管理ダッシュボード</h2>
 
-    <div style="text-align:center">
-      <h2>管理ダッシュボード</h2>
+    <div id="auth-area">
+      <label for="pass">パスコードを入力してください</label><br>
+      <input id="pass" type="password" autocomplete="off" inputmode="numeric" placeholder="••••" />
+      <div class="btn-group">
+        <button id="auth-btn" class="btn" style="background:var(--primary); color:#fff">認証</button>
+        <button id="cancel-btn" class="btn" style="background:#eee; color:#333">キャンセル</button>
+      </div>
+    </div>
 
-      <!-- 認証 -->
-      <div id="auth-area">
-        <label for="pass">パスコード：</label><br>
-        <input id="pass" type="password" autocomplete="off" inputmode="numeric" />
-        <div style="margin-top:12px">
-          <button id="auth-btn" class="btn small-btn" style="background:#2d8cff;color:#fff">認証</button>
-          <button id="cancel-btn" class="btn small-btn" style="background:#ddd">キャンセル</button>
-        </div>
+    <div id="auth-success">
+      <div style="font-size:18px; font-weight:bold;">認証成功 - ログイン中...</div>
+      <div class="loader"></div>
+    </div>
+
+    <div id="dashboard">
+      <div class="tab-menu">
+        <button class="tab-btn active" onclick="switchTab('tab-home')">📈 来場者推移</button>
+        <button class="tab-btn" onclick="switchTab('tab-logs')">🔒 ログイン履歴</button>
       </div>
 
-      <!-- success overlay during 3s (keeps input behind it) -->
-      <div id="auth-success" style="display:none">
-        <div style="font-size:20px">認証成功（Success）</div>
-        <div class="loader" aria-hidden="true"></div>
-      </div>
-
-      <!-- dashboard contents (hidden until auth complete) -->
-      <div id="dashboard">
+      <div id="tab-home" class="tab-content active">
         <div id="controls">
-          <button id="prev-day" class="small-btn">前日</button>
-          <input id="date-picker" type="date" style="padding:8px;border-radius:6px;border:1px solid #ccc" />
-          <button id="next-day" class="small-btn">次日</button>
-          <button id="copy-log" class="small-btn">ログコピー</button>
-          <button id="reset-day" class="small-btn" style="background:#ff6666;color:#fff">リセット</button>
+          <button id="prev-day" class="small-btn">◀ 前日</button>
+          <input id="date-picker" type="date" style="padding:8px; border-radius:6px; border:1px solid #ccc" />
+          <button id="next-day" class="small-btn">次日 ▶</button>
+          <button id="copy-log" class="small-btn" style="background:#f0f7ff; color:var(--primary); border-color:#bcdbff;">📋 ログコピー</button>
+          <button id="reset-day" class="small-btn" style="background:var(--danger); color:#fff; border:none;">⚠️ リセット</button>
         </div>
+        <div class="dashboard-grid">
+          <div>
+            <h4 style="margin:0 0 8px 0;">打刻履歴</h4>
+            <div id="log-area"></div>
+          </div>
+          <div>
+            <h4 style="margin:0 0 8px 0;">時間別累積推移グラフ</h4>
+            <canvas id="graph"></canvas>
+          </div>
+        </div>
+      </div>
 
-        <div style="display:flex;gap:12px;flex-direction:column;align-items:center">
-          <div id="log-area" aria-live="polite"></div>
-          <canvas id="graph"></canvas>
-        </div>
+      <div id="tab-logs" class="tab-content">
+        <h4 style="margin-top:0;">管理者認証・不正操作 履歴</h4>
+        <div id="login-log-area"></div>
       </div>
     </div>
   </div>
@@ -116,31 +163,30 @@
 
 <script>
 /* ======================
-   データ管理（localStorage）
-   Structure:
-     visitor_data = {
-       "YYYY-MM-DD": [ timestamp-millis, ... ],
-       ...
-     }
+   設定とデータ管理
    ======================*/
 const STORAGE_KEY = "visitor_data_v1";
-let visitor_data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+const LOG_STORAGE_KEY = "admin_login_logs_v1";
+const PASS = "1234";          // パスコード
+const MAX_ATTEMPTS = 3;       // ロック・警告が発生する試行回数
 
-// utility date key
+let visitor_data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+let login_logs = JSON.parse(localStorage.getItem(LOG_STORAGE_KEY) || "[]");
+let missCount = 0;            // 現在の連続ミス回数
+let alertPending = false;     // 不正操作の警告ポップアップを表示するフラグ
+
 function dateKeyFrom(d){ 
   const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,"0"); const day = String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${day}`;
 }
 let currentDate = dateKeyFrom(new Date());
-
-// ensure currentDate exists
 if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
 
-// save helper
 function saveAll(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(visitor_data)); }
+function saveLoginLogs(){ localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(login_logs)); }
 
 /* ======================
-   DOM elems
+   DOM要素
    ======================*/
 const countNumber = document.getElementById("count-number");
 const countButton = document.getElementById("count-button");
@@ -164,375 +210,375 @@ const resetDayBtn = document.getElementById("reset-day");
 const milestone = document.getElementById("milestone");
 const fwCanvas = document.getElementById("fw-canvas");
 const fwCtx = fwCanvas.getContext("2d");
+const loginLogArea = document.getElementById("login-log-area");
 
 /* ======================
-   Canvas resize
+   レスポンス・初期化
    ======================*/
 function resizeCanvas(){
   fwCanvas.width = window.innerWidth;
   fwCanvas.height = window.innerHeight;
-  graph.width = Math.min(700, Math.max(300, window.innerWidth * 0.9));
-  graph.height = 240;
+  graph.width = graph.parentElement.clientWidth;
+  graph.height = 260;
+  if(dashboard.style.display === "block") renderGraph(datePicker.value);
 }
 window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
 
-/* ======================
-   Helpers
-   ======================*/
-function getCountFor(dateKey){
-  const arr = visitor_data[dateKey] || [];
-  return arr.length;
-}
-function renderCountFor(dateKey){
-  countNumber.textContent = getCountFor(dateKey);
-}
+function getCountFor(dateKey){ return (visitor_data[dateKey] || []).length; }
+function renderCountFor(dateKey){ countNumber.textContent = getCountFor(dateKey); }
 
-/* ======================
-   Initialize UI values
-   ======================*/
 datePicker.value = currentDate;
 renderCountFor(currentDate);
 
 /* ======================
-   Add count (button pressed)
+   来場者カウント処理
    ======================*/
 function pushEntry(){
+  // 管理画面が開いている場合はカウントさせない
+  if(overlay.style.display === "flex") return;
+
   const now = Date.now();
   visitor_data[currentDate] = visitor_data[currentDate] || [];
   visitor_data[currentDate].push(now);
   saveAll();
   renderCountFor(currentDate);
-  // render visual log if dashboard open and viewing same date
-  if(dashboard.style.display === "block") renderLog(currentDate), renderGraph(currentDate);
-  // check milestone (A): every 10th person
+  
   const cnt = getCountFor(currentDate);
   if(cnt % 10 === 0){
     showMilestone(cnt);
-    // also show fireworks (C)
     startFireworks();
   }
 }
 countButton.addEventListener("click", pushEntry);
 
-/* ======================
-   Milestone popup
-   ======================*/
-let milestoneTimer = null;
-function showMilestone(count){
-  milestone.textContent = `${count}人突破！`;
-  milestone.style.display = "block";
-  milestone.style.opacity = "1";
-  // small scale+fade animation
-  milestone.style.transform = "translate(-50%,-50%) scale(1.05)";
-  clearTimeout(milestoneTimer);
-  milestoneTimer = setTimeout(()=>{
-    milestone.style.transition = "opacity .6s, transform .6s";
-    milestone.style.opacity = "0";
-    milestone.style.transform = "translate(-50%,-50%) scale(.9)";
-    setTimeout(()=>{ milestone.style.display="none"; milestone.style.transition=""; },700);
-  }, 1000); // show 1s then fade
-}
-
-/* ======================
-   Fireworks effect (C)
-   Simple particle burst using fwCanvas
-   ======================*/
-function startFireworks(){
-  const particles = [];
-  const cx = Math.random()*(fwCanvas.width*0.6)+fwCanvas.width*0.2;
-  const cy = Math.random()*(fwCanvas.height*0.35)+fwCanvas.height*0.1;
-  const n = 120;
-  for(let i=0;i<n;i++){
-    const angle = Math.random()*Math.PI*2;
-    const speed = Math.random()*6 + 1;
-    particles.push({
-      x: cx, y: cy,
-      vx: Math.cos(angle)*speed,
-      vy: Math.sin(angle)*speed,
-      r: Math.random()*3+1.5,
-      color: `hsl(${Math.floor(Math.random()*360)},100%,60%)`,
-      life: Math.random()*60+40
-    });
-  }
-  let t = 0;
-  const id = setInterval(()=>{
-    t++;
-    fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
-    for(const p of particles){
-      if(p.life<=0) continue;
-      fwCtx.beginPath();
-      fwCtx.globalAlpha = Math.max(0, p.life/100);
-      fwCtx.fillStyle = p.color;
-      fwCtx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      fwCtx.fill();
-      p.x += p.vx;
-      p.y += p.vy + 0.1 * t*0.01; // gravity-ish
-      p.vx *= 0.99;
-      p.vy *= 0.99;
-      p.life -= 1.5;
-    }
-    if(particles.every(pp=>pp.life<=0)){
-      clearInterval(id);
-      setTimeout(()=>fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height), 50);
-    }
-  }, 16);
-}
-
-/* ======================
-   Admin open/close
-   ======================*/
-adminOpen.addEventListener("click", ()=>{
-  overlay.style.display = "flex";
-  overlay.setAttribute("aria-hidden","false");
-  adminPanel.style.left = "0";
-  // hide count screen while admin open (explicit requirement)
-  document.getElementById("count-screen").style.display = "none";
-});
-function closeAdmin(){
-  overlay.style.display = "none";
-  overlay.setAttribute("aria-hidden","true");
-  adminPanel.style.left = "-100%";
-  // restore count screen
-  document.getElementById("count-screen").style.display = "block";
-  // reset auth UI to initial state (completely)
-  resetAuthUI();
-}
-closeBtn.addEventListener("click", closeAdmin);
-document.getElementById("cancel-btn").addEventListener("click", closeAdmin);
-
-/* ======================
-   Auth flow: keep input visible during 3s animation,
-   show success overlay above it, then hide auth area and show dashboard.
-   After closing admin, reset back to auth.
-   ======================*/
-const PASS = "1234";
-
-authBtn.addEventListener("click", ()=>{
-  const v = passInput.value || "";
-  if(v !== PASS){ alert("パスコードが違います"); return; }
-  // show success overlay (on top) but keep auth input visible behind it
-  authSuccess.style.display = "block";
-  // keep focus invisibly - do not save pass
-  passInput.value = ""; // ensure not stored visible
-  // 3 seconds loader -> then show dashboard and hide auth area
-  setTimeout(()=>{
-    authSuccess.style.display = "none";
-    authArea.style.display = "none"; // hide auth area (label+input+buttons)
-    dashboard.style.display = "block";
-    // initialize dashboard UI values
-    currentDate = datePicker.value || currentDate;
-    renderLog(currentDate);
-    renderGraph(currentDate);
-  }, 3000);
-});
-
-/* ======================
-   reset auth UI (on close)
-   ======================*/
-function resetAuthUI(){
-  authArea.style.display = "block";
-  passInput.value = "";
-  authSuccess.style.display = "none";
-  dashboard.style.display = "none";
-  // reset date-picker to currentDate
-  datePicker.value = currentDate;
-}
-
-/* ======================
-   Date navigation / render
-   ======================*/
-function renderLog(dateKey){
-  dateKey = dateKey || currentDate;
-  const arr = visitor_data[dateKey] || [];
-  // show count for selected date
-  // Note: if admin view shows different date than current date in main screen, keep main count unchanged until switching main date
-  const lines = arr.map(ts => new Date(ts).toLocaleString());
-  logArea.innerHTML = lines.length ? lines.join("<br>") : "<div style='opacity:.7'>まだ記録がありません</div>";
-  // update date-picker value
-  datePicker.value = dateKey;
-}
-
-function renderGraph(dateKey){
-  dateKey = dateKey || currentDate;
-  const arr = (visitor_data[dateKey] || []).slice().sort((a,b)=>a-b);
-  const ctx = graph.getContext("2d");
-  ctx.clearRect(0,0,graph.width,graph.height);
-  if(arr.length === 0) return;
-  // Build time series (cumulative) — x axis: minutes from 0:00, y axis: cumulative count
-  const times = arr.map(t=>new Date(t));
-  const start = new Date(dateKey + "T00:00:00");
-  const total = arr.length;
-  // Map to points
-  const w = graph.width, h = graph.height;
-  const pts = times.map(d=>{
-    const minutes = (d - start) / 60000;
-    const x = Math.max(0, Math.min(w, (minutes / (24*60)) * w));
-    return { x, y: h - ( ( (arr.indexOf(d.getTime())+1) / total ) * h ) };
-  });
-  // Simpler: draw cumulative step-like curve
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = "#3b82f6";
-  ctx.beginPath();
-  for(let i=0;i<times.length;i++){
-    const minutes = (times[i] - start) / 60000;
-    const x = Math.max(0, Math.min(w, (minutes / (24*60)) * w));
-    const y = h - ((i+1)/total)*h;
-    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-  }
-  ctx.stroke();
-  // axes (very simple)
-  ctx.fillStyle = "#666";
-  ctx.font = "12px sans-serif";
-  ctx.fillText("0:00", 4, h-4);
-  ctx.fillText("24:00", w-36, h-4);
-}
-
-/* init datePicker and navigation */
-datePicker.value = currentDate;
-datePicker.addEventListener("change", ()=>{
-  currentDate = datePicker.value;
-  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
-  saveAll();
-  renderLog(currentDate);
-  renderGraph(currentDate);
-  // main screen count reflects currently selected date? keep it so admin can inspect other dates
-  renderCountFor(currentDate);
-});
-
-/* prev/next day */
-prevDayBtn.addEventListener("click", ()=>{
-  const d = new Date(currentDate + "T00:00:00");
-  d.setDate(d.getDate()-1);
-  currentDate = dateKeyFrom(d);
-  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
-  datePicker.value = currentDate;
-  saveAll();
-  renderLog(currentDate);
-  renderGraph(currentDate);
-  renderCountFor(currentDate);
-});
-nextDayBtn.addEventListener("click", ()=>{
-  const d = new Date(currentDate + "T00:00:00");
-  d.setDate(d.getDate()+1);
-  currentDate = dateKeyFrom(d);
-  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
-  datePicker.value = currentDate;
-  saveAll();
-  renderLog(currentDate);
-  renderGraph(currentDate);
-  renderCountFor(currentDate);
-});
-
-/* copy log */
-copyLogBtn.addEventListener("click", async ()=>{
-  const arr = visitor_data[currentDate] || [];
-  if(arr.length===0){ alert("記録がありません"); return; }
-  const text = arr.map(t=>new Date(t).toLocaleString()).join("\n");
-  try{
-    await navigator.clipboard.writeText(text);
-    alert("ログをクリップボードにコピーしました");
-  }catch(e){
-    alert("コピーに失敗しました（ブラウザの権限を確認してください）");
-  }
-});
-
-/* reset day */
-resetDayBtn.addEventListener("click", ()=>{
-  if(!confirm("本当にこの日の記録をリセットしますか？（元に戻せません）")) return;
-  visitor_data[currentDate] = [];
-  saveAll();
-  renderLog(currentDate);
-  renderGraph(currentDate);
-  renderCountFor(currentDate);
-});
-
-/* render main count for currently selected date by admin? Keep main count reflects currentDate */
-function renderCountFor(dateKey){
-  dateKey = dateKey || currentDate;
-  const cnt = (visitor_data[dateKey] || []).length;
-  countNumber.textContent = cnt;
-}
-
-/* When overlay closed, show main screen count for today (not necessarily currently viewed date) */
-function restoreMainCountToToday(){
-  const today = dateKeyFrom(new Date());
-  if(visitor_data[today]) countNumber.textContent = visitor_data[today].length;
-  else countNumber.textContent = 0;
-}
-
-/* When admin overlay closed, restore main count to today's data */
-closeBtn.addEventListener("click", ()=>{
-  closeAfterReset();
-});
-function closeAfterReset(){
-  closeAdminUI();
-  restoreMainCountToToday();
-}
-function closeAdminUI(){
-  overlay.style.display = "none";
-  adminPanel.style.left = "-100%";
-  // reset auth to fresh
-  resetAuthUI();
-  // show count screen again
-  document.getElementById("count-screen").style.display = "flex";
-}
-
-/* resetAuthUI (also used when closing via cancel) */
-function resetAuthUI(){
-  authSuccess.style.display = "none";
-  authArea.style.display = "block";
-  dashboard.style.display = "none";
-  passInput.value = "";
-}
-
-/* ensure saveAll exists */
-function saveAll(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(visitor_data));
-}
-
-/* initial rendering for admin when first opened later */
-function renderGraphAndLogInit(){
-  datePicker.value = currentDate;
-  renderLog(currentDate);
-  renderGraph(currentDate);
-}
-
-/* When overlay opens, set datePicker to currentDate and render */
-adminOpen.addEventListener("click", ()=>{
-  datePicker.value = currentDate;
-  renderLog(currentDate);
-  renderGraph(currentDate);
-});
-
-/* Also ensure when closed by cancel */
-document.getElementById("cancel-btn").addEventListener("click", ()=>{
-  closeAdminUI();
-  document.getElementById("count-screen").style.display = "flex";
-});
-
-/* ensure pressing Escape closes admin */
-window.addEventListener("keydown", (e)=>{
-  if(e.key === "Escape" && overlay.style.display === "flex"){
-    closeAdminUI();
-    document.getElementById("count-screen").style.display = "flex";
-  }
-});
-
-/* make sure main count shows today on load */
-restoreMainCountToToday();
-
-/* キーボード入力でのカウント */
-window.addEventListener("keydown",(e)=> {
-  // 管理画面を開いているとき、誤操作を防ぐためキーボードでのカウントを無効化する
-  if (overlay.style.display === "flax") return;
-    
+// キーボードによる通常カウントの制御
+window.addEventListener("keydown", (e) => {
+  // 管理画面表示中はスペース・Enterによる通常カウントを行わせない
+  if (overlay.style.display === "flex") return;
+  
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
     pushEntry();
   }
 });
+
+/* ======================
+   認証フロー（Enterキー対応・ログ記録）
+   ======================*/
+function attemptAuth(){
+  const v = passInput.value || "";
+  const timeStr = new Date().toLocaleString();
+
+  if(v === PASS){
+    // 認証成功ログの追加
+    login_logs.unshift({ time: timeStr, status: "SUCCESS", msg: "正常ログイン" });
+    saveLoginLogs();
+    missCount = 0; // ミスカウントをリセット
+
+    authArea.style.display = "none";
+    authSuccess.style.display = "block";
+    passInput.value = ""; 
+
+    setTimeout(()=>{
+      authSuccess.style.display = "none";
+      dashboard.style.display = "block";
+      switchTab('tab-home'); // 最初は来場者推移画面を表示
+      renderLog(datePicker.value);
+      renderGraph(datePicker.value);
+      renderLoginLogs();
+      resizeCanvas();
+    }, 2000); // 演出を少し短く(2秒)に調整して操作性をUP
+  } else {
+    // 認証失敗ログの追加
+    missCount++;
+    login_logs.unshift({ time: timeStr, status: "ALERT", msg: `パスコード誤入力 (${missCount}回目)` });
+    
+    if(missCount >= MAX_ATTEMPTS) {
+      login_logs.unshift({ time: timeStr, status: "ALERT", msg: `不正操作を検知 [${missCount}回]` });
+      alertPending = true; // 次回開いたとき用のフラグを立てる
+    }
+    saveLoginLogs();
+    alert("パスコードが違います");
+    passInput.value = "";
+    passInput.focus();
+  }
+}
+
+authBtn.addEventListener("click", attemptAuth);
+passInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter") {
+    e.preventDefault();
+    attemptAuth();
+  }
+});
+
+/* ======================
+   管理画面の開閉 (ESCキー対応)
+   ======================*/
+adminOpen.addEventListener("click", ()=>{
+  overlay.style.display = "flex";
   
+  // 指定回数以上の不正ミスがあった場合、1回のみ警告を出す
+  if(alertPending) {
+    setTimeout(() => {
+      alert(`不正操作が行われました。[${missCount}回]`);
+      alertPending = false; // 1回表示したらリセット
+    }, 100);
+  }
+
+  resetAuthUI();
+  passInput.focus();
+});
+
+function closeAdminUI(){
+  overlay.style.display = "none";
+  resetAuthUI();
+  // メイン画面のカウントを本日のものに直す
+  renderCountFor(dateKeyFrom(new Date()));
+}
+
+closeBtn.addEventListener("click", closeAdminUI);
+cancelBtn.addEventListener("click", closeAdminUI);
+
+// ESCキーを押して管理画面を閉じる処理
+window.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape" && overlay.style.display === "flex"){
+    closeAdminUI();
+  }
+});
+
+function resetAuthUI(){
+  authSuccess.style.display = "none";
+  authArea.style.display = "block";
+  dashboard.style.display = "none";
+  passInput.value = "";
+}
+
+/* ======================
+   ダッシュボード：タブ切り替え
+   ======================*/
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  
+  document.getElementById(tabId).classList.add('active');
+  event.currentTarget.classList.add('active');
+  
+  if(tabId === 'tab-home') {
+    resizeCanvas();
+  } else if(tabId === 'tab-logs') {
+    renderLoginLogs();
+  }
+}
+
+/* ======================
+   UI提案：グラフィカルなグラフ描画
+   ======================*/
+function renderGraph(dateKey){
+  if(!dateKey) return;
+  const arr = (visitor_data[dateKey] || []).slice().sort((a,b)=>a-b);
+  const ctx = graph.getContext("2d");
+  const w = graph.width;
+  const h = graph.height;
+  
+  ctx.clearRect(0,0,w,h);
+  
+  // 背景のグリッド（補助線）の描画
+  ctx.strokeStyle = "#f0f0f0";
+  ctx.lineWidth = 1;
+  
+  // 縦線（時間軸: 6時間ごと）
+  const hours = [0, 6, 12, 18, 24];
+  hours.forEach(hr => {
+    const x = (hr / 24) * (w - 40) + 25;
+    ctx.beginPath();
+    ctx.moveTo(x, 10);
+    ctx.lineTo(x, h - 25);
+    ctx.stroke();
+    
+    // 時間文字
+    ctx.fillStyle = "#999";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${hr}:00`, x, h - 10);
+  });
+
+  if(arr.length === 0) {
+    ctx.fillStyle = "#bbb";
+    ctx.textAlign = "center";
+    ctx.fillText("データがありません", w/2, h/2);
+    return;
+  }
+
+  // 横線（人数軸: 最大値に応じた目盛り）
+  const total = arr.length;
+  const yLines = 4;
+  for(let i=0; i<=yLines; i++) {
+    const y = (i / yLines) * (h - 35) + 10;
+    ctx.beginPath();
+    ctx.moveTo(25, y);
+    ctx.lineTo(w - 15, y);
+    ctx.stroke();
+    
+    // 人数文字
+    ctx.fillStyle = "#999";
+    ctx.textAlign = "right";
+    const val = Math.round(total - (i / yLines) * total);
+    ctx.fillText(val, 20, y + 4);
+  }
+
+  // データのマッピングと描画 (エリア・グラデーション表現)
+  const start = new Date(dateKey + "T00:00:00");
+  const points = [{x: 25, y: h - 25}]; // 起点
+
+  arr.forEach((ts, index) => {
+    const d = new Date(ts);
+    const minutes = (d - start) / 60000;
+    const x = (minutes / (24 * 60)) * (w - 40) + 25;
+    const y = (h - 25) - ((index + 1) / total) * (h - 35);
+    points.push({ x, y });
+  });
+  
+  // 最後の時間から24:00までの水平線を追加
+  points.push({ x: w - 15, y: points[points.length - 1].y });
+
+  // 1. エリア（塗りつぶし）の描画
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, "rgba(45, 140, 255, 0.3)");
+  gradient.addColorStop(1, "rgba(45, 140, 255, 0.0)");
+  
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(w - 15, h - 25); // 右下へ閉じる
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // 2. メインの折れ線を描画
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "var(--primary)";
+  ctx.lineJoin = "round";
+  ctx.stroke();
+}
+
+/* ======================
+   各種データ描画・操作
+   ======================*/
+function renderLog(dateKey){
+  const arr = visitor_data[dateKey] || [];
+  const lines = arr.map((ts, i) => `<div style="padding:3px 0; border-bottom:1px dashed #eee;">${i+1}. ${new Date(ts).toLocaleTimeString()}</div>`);
+  logArea.innerHTML = lines.length ? lines.reverse().join("") : "<div style='opacity:.5; padding:10px;'>データなし</div>";
+  datePicker.value = dateKey;
+}
+
+function renderLoginLogs(){
+  if(login_logs.length === 0){
+    loginLogArea.innerHTML = "<div style='opacity:.5; text-align:center; padding-top:40px;'>ログはありません</div>";
+    return;
+  }
+  loginLogArea.innerHTML = login_logs.map(log => {
+    const badgeClass = log.status === "SUCCESS" ? "success" : "danger";
+    return `
+      <div class="log-row">
+        <span>[${log.time}] <strong>${log.msg}</strong></span>
+        <span class="badge ${badgeClass}">${log.status}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+/* 日付ナビゲーション */
+datePicker.addEventListener("change", ()=>{
+  currentDate = datePicker.value;
+  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
+  renderLog(currentDate);
+  renderGraph(currentDate);
+});
+
+prevDayBtn.addEventListener("click", ()=>{
+  const d = new Date(datePicker.value + "T00:00:00");
+  d.setDate(d.getDate() - 1);
+  const key = dateKeyFrom(d);
+  if(!visitor_data[key]) visitor_data[key] = [];
+  renderLog(key);
+  renderGraph(key);
+});
+
+nextDayBtn.addEventListener("click", ()=>{
+  const d = new Date(datePicker.value + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  const key = dateKeyFrom(d);
+  if(!visitor_data[key]) visitor_data[key] = [];
+  renderLog(key);
+  renderGraph(key);
+});
+
+copyLogBtn.addEventListener("click", async ()=>{
+  const arr = visitor_data[datePicker.value] || [];
+  if(arr.length === 0){ alert("記録がありません"); return; }
+  const text = arr.map(t=>new Date(t).toLocaleString()).join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("ログをクリップボードにコピーしました");
+  } catch(e) {
+    alert("コピーに失敗しました");
+  }
+});
+
+resetDayBtn.addEventListener("click", ()=>{
+  if(!confirm("本当にこの日の記録をリセットしますか？（元に戻せません）")) return;
+  visitor_data[datePicker.value] = [];
+  saveAll();
+  renderLog(datePicker.value);
+  renderGraph(datePicker.value);
+});
+
+/* ======================
+   ポップアップ演出（マイルストーン・花火）
+   ======================*/
+let milestoneTimer = null;
+function showMilestone(count){
+  milestone.textContent = `${count}人突破！`;
+  milestone.style.display = "block";
+  clearTimeout(milestoneTimer);
+  milestoneTimer = setTimeout(()=>{ milestone.style.display="none"; }, 1500);
+}
+
+function startFireworks(){
+  const particles = [];
+  const cx = Math.random()*(fwCanvas.width*0.6)+fwCanvas.width*0.2;
+  const cy = Math.random()*(fwCanvas.height*0.35)+fwCanvas.height*0.1;
+  for(let i=0;i<100;i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = Math.random()*5 + 1;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed,
+      r: Math.random()*2+1,
+      color: `hsl(${Math.floor(Math.random()*360)},100%,60%)`,
+      life: Math.random()*50+30
+    });
+  }
+  const id = setInterval(()=>{
+    fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+    particles.forEach(p => {
+      if(p.life <= 0) return;
+      fwCtx.beginPath();
+      fwCtx.globalAlpha = p.life/80;
+      fwCtx.fillStyle = p.color;
+      fwCtx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      fwCtx.fill();
+      p.x += p.vx; p.y += p.vy + 0.04;
+      p.life--;
+    });
+    if(particles.every(p=>p.life<=0)) clearInterval(id);
+  }, 16);
+}
 </script>
 </body>
 </html>
