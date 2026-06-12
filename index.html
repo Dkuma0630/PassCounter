@@ -522,6 +522,17 @@ window.addEventListener("keydown", (e)=>{
 /* make sure main count shows today on load */
 restoreMainCountToToday();
 
+/* キーボード入力でのカウント */
+window.addEventListener("keydown",(e)=> {
+  // 管理画面を開いているとき、誤操作を防ぐためキーボードでのカウントを無効化する
+  if (overlay.style.display === "flax") return;
+    
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    pushEntry();
+  }
+});
+  
 </script>
 </body>
 </html>
