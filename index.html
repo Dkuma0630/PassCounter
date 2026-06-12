@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>来場者カウント - ログ管理機能強化版</title>
+<title>来場者カウント - ログ管理機能強化版（完全修復）</title>
 <style>
   :root {
     --bg: #f4f6f9;
@@ -126,7 +126,7 @@
 
     <div id="auth-area">
       <label for="pass">パスコードを入力してください</label><br>
-      <input id="pass" type="password" autocomplete="off" inputmode="numeric" placeholder="•••••••" />
+      <input id="pass" type="password" autocomplete="off" inputmode="numeric" placeholder="••••" />
       <div class="btn-group">
         <button id="auth-btn" class="btn" style="background:var(--primary); color:#fff">認証</button>
         <button id="cancel-btn" class="btn" style="background:#eee; color:#333">キャンセル</button>
@@ -254,7 +254,7 @@ renderCountFor(currentDate);
    来場者カウント処理
    ======================*/
 function pushEntry(){
-  if(overlay.style.display === "flex") return; // 管理画面展開時は停止
+  if(overlay.style.display === "flex") return; 
 
   const now = Date.now();
   visitor_data[currentDate] = visitor_data[currentDate] || [];
@@ -281,3 +281,305 @@ window.addEventListener("keydown", (e) => {
 /* ======================
    認証フロー
    ======================*/
+function attemptAuth(){
+  const v = passInput.value || "";
+  const timeStr = new Date().toLocaleString();
+
+  if(v.trim() === "") {
+    alert("パスコードを入力してください");
+    passInput.focus();
+    return;
+  }
+
+  if(v === PASS){
+    login_logs.unshift({ id: Date.now() + "" + Math.random(), time: timeStr, status: "SUCCESS", msg: "正常ログイン" });
+    saveLoginLogs();
+    totalMissCount = 0; 
+
+    authArea.style.display = "none";
+    authSuccess.style.display = "block";
+    passInput.value = ""; 
+
+    setTimeout(()=>{
+      authSuccess.style.display = "none";
+      dashboard.style.display = "block";
+      switchTab('tab-home');
+      renderLog(datePicker.value);
+      renderGraph(datePicker.value);
+      renderLoginLogs();
+      resizeCanvas();
+    }, 2000);
+  } 
+  else {
+    totalMissCount++;
+    if(totalMissCount % MISS_PER_ALERT === 0) {
+      illegalActionCount++;
+      login_logs.unshift({ id: Date.now() + "" + Math.random(), time: timeStr, status: "ALERT", msg: `不正操作を検知 [${illegalActionCount}回目] (計${totalMissCount}回ミス)` });
+      alertPending = true; 
+    } else {
+      login_logs.unshift({ id: Date.now() + "" + Math.random(), time: timeStr, status: "ALERT", msg: `パスコード誤入力 (誤入力累計:${totalMissCount}回)` });
+    }
+    
+    saveLoginLogs();
+    alert("パスコードが違います");
+    passInput.value = "";
+    passInput.focus();
+  }
+}
+
+authBtn.addEventListener("click", attemptAuth);
+passInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter") {
+    e.preventDefault();
+    attemptAuth();
+  }
+});
+
+/* ======================
+   管理画面の開閉
+   ======================*/
+adminOpen.addEventListener("click", ()=>{
+  overlay.style.display = "flex";
+  if(alertPending && illegalActionCount > 0) {
+    setTimeout(() => {
+      alert(`不正操作が行われました。[${illegalActionCount}回]`);
+      alertPending = false; 
+    }, 100);
+  }
+  resetAuthUI();
+  passInput.focus();
+});
+
+function closeAdminUI(){
+  overlay.style.display = "none";
+  resetAuthUI();
+  renderCountFor(dateKeyFrom(new Date()));
+}
+
+closeBtn.addEventListener("click", closeAdminUI);
+cancelBtn.addEventListener("click", closeAdminUI);
+
+window.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape" && overlay.style.display === "flex"){
+    closeAdminUI();
+  }
+});
+
+function resetAuthUI(){
+  authSuccess.style.display = "none";
+  authArea.style.display = "block";
+  dashboard.style.display = "none";
+  passInput.value = "";
+}
+
+/* ======================
+   ダッシュボード：タブ切り替え
+   ======================*/
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  
+  document.getElementById(tabId).classList.add('active');
+  if(event && event.currentTarget) {
+    event.currentTarget.classList.add('active');
+  }
+  
+  if(tabId === 'tab-home') {
+    resizeCanvas();
+  } else if(tabId === 'tab-logs') {
+    renderLoginLogs();
+  }
+}
+
+/* ======================
+   ログインログの個別削除・複数選択削除機能
+   ======================*/
+function renderLoginLogs(){
+  allSelectChk.checked = false; 
+  if(login_logs.length === 0){
+    loginLogArea.innerHTML = "<div style='opacity:.5; text-align:center; padding-top:40px;'>ログはありません</div>";
+    return;
+  }
+  
+  loginLogArea.innerHTML = login_logs.map(log => {
+    const badgeClass = log.status === "SUCCESS" ? "success" : "danger";
+    const logId = log.id || log.time + log.msg; 
+    return `
+      <div class="log-row">
+        <input type="checkbox" class="log-item-chk" data-id="${logId}" />
+        <div class="log-body">
+          <span>[${log.time}] <strong>${log.msg}</strong></span>
+          <span class="badge ${badgeClass}">${log.status}</span>
+        </div>
+        <button class="del-btn" onclick="deleteSingleLoginLog('${logId}')" title="このログを削除">✕</button>
+      </div>
+    `;
+  }).join("");
+}
+
+function deleteSingleLoginLog(logId) {
+  if(!confirm("このログを削除してもよろしいですか？")) return;
+  login_logs = login_logs.filter(log => (log.id || log.time + log.msg) !== logId);
+  saveLoginLogs();
+  renderLoginLogs();
+}
+
+allSelectChk.addEventListener("change", (e) => {
+  const chkBoxes = document.querySelectorAll(".log-item-chk");
+  chkBoxes.forEach(chk => chk.checked = e.target.checked);
+});
+
+selectedLogDelBtn.addEventListener("click", () => {
+  const selectedChks = document.querySelectorAll(".log-item-chk:checked");
+  if(selectedChks.length === 0) {
+    alert("削除したいログにチェックを入れてください。");
+    return;
+  }
+
+  if(!confirm(`選択された ${selectedChks.length} 件のログを削除します。よろしいですか？`)) return;
+
+  const targetIds = Array.from(selectedChks).map(chk => chk.getAttribute("data-id"));
+
+  login_logs = login_logs.filter(log => {
+    const logId = log.id || log.time + log.msg;
+    return !targetIds.includes(logId);
+  });
+
+  saveLoginLogs();
+  renderLoginLogs();
+});
+
+/* ======================
+   グラフ描画
+   ======================*/
+function renderGraph(dateKey){
+  if(!dateKey) return;
+  const arr = (visitor_data[dateKey] || []).slice().sort((a,b)=>a-b);
+  const ctx = graph.getContext("2d");
+  const w = graph.width;
+  const h = graph.height;
+  
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle = "#f0f0f0";
+  ctx.lineWidth = 1;
+  
+  const hours = [0, 6, 12, 18, 24];
+  hours.forEach(hr => {
+    const x = (hr / 24) * (w - 40) + 25;
+    ctx.beginPath(); ctx.moveTo(x, 10); ctx.lineTo(x, h - 25); ctx.stroke();
+    ctx.fillStyle = "#999"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(`${hr}:00`, x, h - 10);
+  });
+
+  if(arr.length === 0) {
+    ctx.fillStyle = "#bbb"; ctx.textAlign = "center"; ctx.fillText("データがありません", w/2, h/2);
+    return;
+  }
+
+  const total = arr.length;
+  const yLines = 4;
+  for(let i=0; i<=yLines; i++) {
+    const y = (i / yLines) * (h - 35) + 10;
+    ctx.beginPath(); ctx.moveTo(25, y); ctx.lineTo(w - 15, y); ctx.stroke();
+    ctx.fillStyle = "#999"; ctx.textAlign = "right";
+    const val = Math.round(total - (i / yLines) * total);
+    ctx.fillText(val, 20, y + 4);
+  }
+
+  const start = new Date(dateKey + "T00:00:00");
+  const points = [{x: 25, y: h - 25}];
+
+  arr.forEach((ts, index) => {
+    const d = new Date(ts);
+    const minutes = (d - start) / 60000;
+    const x = (minutes / (24 * 60)) * (w - 40) + 25;
+    const y = (h - 25) - ((index + 1) / total) * (h - 35);
+    points.push({ x, y });
+  });
+  
+  points.push({ x: w - 15, y: points[points.length - 1].y });
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, "rgba(45, 140, 255, 0.3)");
+  gradient.addColorStop(1, "rgba(45, 140, 255, 0.0)");
+  
+  ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(w - 15, h - 25); ctx.closePath(); ctx.fillStyle = gradient; ctx.fill();
+
+  ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineWidth = 3; ctx.strokeStyle = "var(--primary)"; ctx.lineJoin = "round"; ctx.stroke();
+}
+
+/* 日付系操作 */
+function renderLog(dateKey){
+  const arr = visitor_data[dateKey] || [];
+  const lines = arr.map((ts, i) => `<div style="padding:3px 0; border-bottom:1px dashed #eee;">${i+1}. ${new Date(ts).toLocaleTimeString()}</div>`);
+  logArea.innerHTML = lines.length ? lines.reverse().join("") : "<div style='opacity:.5; padding:10px;'>データなし</div>";
+  datePicker.value = dateKey;
+}
+
+datePicker.addEventListener("change", ()=>{
+  currentDate = datePicker.value;
+  if(!visitor_data[currentDate]) visitor_data[currentDate] = [];
+  renderLog(currentDate); renderGraph(currentDate);
+});
+
+prevDayBtn.addEventListener("click", ()=>{
+  const d = new Date(datePicker.value + "T00:00:00"); d.setDate(d.getDate() - 1);
+  const key = dateKeyFrom(d); if(!visitor_data[key]) visitor_data[key] = [];
+  renderLog(key); renderGraph(key);
+});
+
+nextDayBtn.addEventListener("click", ()=>{
+  const d = new Date(datePicker.value + "T00:00:00"); d.setDate(d.getDate() + 1);
+  const key = dateKeyFrom(d); if(!visitor_data[key]) visitor_data[key] = [];
+  renderLog(key); renderGraph(key);
+});
+
+copyLogBtn.addEventListener("click", async ()=>{
+  const arr = visitor_data[datePicker.value] || [];
+  if(arr.length === 0){ alert("記録がありません"); return; }
+  const text = arr.map(t=>new Date(t).toLocaleString()).join("\n");
+  try { await navigator.clipboard.writeText(text); alert("ログをクリップボードにコピーしました"); } catch(e) { alert("コピーに失敗しました"); }
+});
+
+resetDayBtn.addEventListener("click", ()=>{
+  if(!confirm("本当にこの日の記録をリセットしますか？（元に戻せません）")) return;
+  visitor_data[datePicker.value] = []; saveAll();
+  renderLog(datePicker.value); renderGraph(datePicker.value);
+});
+
+/* ポップアップ演出 */
+let milestoneTimer = null;
+function showMilestone(count){
+  milestone.textContent = `${count}人突破！`; milestone.style.display = "block";
+  clearTimeout(milestoneTimer); milestoneTimer = setTimeout(()=>{ milestone.style.display="none"; }, 1500);
+}
+
+function startFireworks(){
+  const particles = [];
+  const cx = Math.random()*(fwCanvas.width*0.6)+fwCanvas.width*0.2;
+  const cy = Math.random()*(fwCanvas.height*0.35)+fwCanvas.height*0.1;
+  for(let i=0;i<100;i++){
+    const angle = Math.random()*Math.PI*2; const speed = Math.random()*5 + 1;
+    particles.push({
+      x: cx, y: cy, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+      r: Math.random()*2+1, color: `hsl(${Math.floor(Math.random()*360)},100%,60%)`, life: Math.random()*50+30
+    });
+  }
+  const id = setInterval(()=>{
+    fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+    particles.forEach(p => {
+      if(p.life <= 0) return;
+      fwCtx.beginPath(); fwCtx.globalAlpha = p.life/80; fwCtx.fillStyle = p.color;
+      fwCtx.arc(p.x, p.y, p.r, 0, Math.PI*2); fwCtx.fill();
+      p.x += p.vx; p.y += p.vy + 0.04; p.life--;
+    });
+    if(particles.every(p=>p.life<=0)) clearInterval(id);
+  }, 16);
+}
+</script>
+</body>
+</html>
